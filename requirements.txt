@@ -1,0 +1,12 @@
+# Python 3.12.7
+llama-index
+llama-index-vector-stores-chroma
+llama-index-embeddings-openai
+llama-index-llms-openai
+llama-index-graph-stores-neo4j
+pandas
+datasets
+chromadb
+python-dotenv
+neo4j
+ragas
