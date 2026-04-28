@@ -18,6 +18,7 @@ LlamaIndex 의 `TextToCypherRetriever` 가 이 단계를 그대로 구현한다.
 """
 
 import os
+import re
 import json
 import pandas as pd
 
@@ -45,7 +46,7 @@ from ragas.llms import LangchainLLMWrapper
 from ragas.embeddings import LangchainEmbeddingsWrapper
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
-from utils import load_config
+from utils import load_config, get_neo4j_creds
 
 # ── 환경 설정 ──────────────────────────────────────────────────────────────────
 load_config()
@@ -63,12 +64,13 @@ MAX_TOKENS        = 1024              # [C] max_tokens 동일
 SIMILARITY_TOP_K  = 4                 # [B] Vector ↔ Hybrid 동일 top_k
 HOP_DEPTH         = 1                 # 다이어그램: 1-hop traversal
 
-# Neo4j 접속 (build_graph_db.py 와 동일한 환경변수 사용)
-NEO4J_URI         = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-NEO4J_USERNAME    = os.getenv("NEO4J_USERNAME", "neo4j")
-NEO4J_PASSWORD    = os.getenv("NEO4J_PASSWORD")
-GRAPH_DB_LABEL    = "ai_arxiv_graph"  # Vector RAG 의 'ai_arxiv_full' 과 동일한 네이밍 정책
-GRAPH_DB_NAME     = os.getenv("NEO4J_DATABASE_GRAPH", "neo4j")
+# Neo4j 접속 — Graph 전용 인스턴스 (NEO4J_*_GRAPH 우선, 없으면 공통 NEO4J_* 폴백)
+_creds            = get_neo4j_creds("graph")
+NEO4J_URI         = _creds.uri
+NEO4J_USERNAME    = _creds.username
+NEO4J_PASSWORD    = _creds.password
+GRAPH_DB_LABEL    = "ai_arxiv_graph"   # Vector RAG 의 'ai_arxiv_full' 과 동일한 네이밍 정책
+GRAPH_DB_NAME     = _creds.database
 
 # 벤치마크 (논문: ARAGOG, arXiv AI 논문 16개 / QA쌍 107개)
 BENCHMARK_PATH    = "eval_questions/benchmark.json"   # ← 실제 경로로 수정
@@ -133,11 +135,39 @@ print(f"[2/4] Graph 쿼리 엔진 구성 (retriever=TextToCypher, hop_depth={HOP
 # 다이어그램의 'Cypher 쿼리 변환 → 그래프 쿼리 실행 → 노드·관계 검색' 단계.
 # query_llm 으로 자연어 q → Cypher Q_q 변환 후 Neo4j 에서 직접 실행하여
 # (Ni, Rij, Nj) 트리플 집합을 그대로 컨텍스트로 사용한다.
+
+# (1) gpt-3.5-turbo 가 종종 ```cypher ... ``` 마크다운으로 감싸서 반환하는데
+#     Neo4j 파서는 그걸 못 벗기고 SyntaxError 를 낸다. 코드펜스를 제거하는
+#     validator 를 cypher_validator 훅으로 끼워 넣는다.
+_FENCE_OPEN  = re.compile(r"^```(?:cypher|sql)?\s*\n?", flags=re.IGNORECASE)
+_FENCE_CLOSE = re.compile(r"\n?```\s*$")
+
+def _clean_cypher(cypher_query: str) -> str:
+    cleaned = cypher_query.strip()
+    cleaned = _FENCE_OPEN.sub("", cleaned)
+    cleaned = _FENCE_CLOSE.sub("", cleaned)
+    return cleaned.strip()
+
+# (2) 동시에 LLM 이 애초에 마크다운을 쓰지 않도록 프롬프트로도 잠금.
+TEXT_TO_CYPHER_TEMPLATE = PromptTemplate(
+    "You are an expert Cypher query writer. Generate ONE Cypher query that answers the "
+    "question, using the given Neo4j schema.\n\n"
+    "Schema:\n{schema}\n\n"
+    "STRICT RULES:\n"
+    "- Output ONLY the raw Cypher query (no markdown code fences, no ``` wrapping).\n"
+    "- No explanations, comments, or prose before or after the query.\n"
+    "- The query must be syntactically valid Cypher 5.\n"
+    "- Use only labels and relationship types that appear in the schema above.\n\n"
+    "Question: {question}\n\n"
+    "Cypher query:"
+)
+
 cypher_retriever = TextToCypherRetriever(
     graph_store=graph_store,
-    llm=generation_llm,        # query_llm = generation_llm = gpt-3.5-turbo (다이어그램 일치)
-    # text_to_cypher_template / response_template 은 LlamaIndex 디폴트 사용.
-    # 디폴트 프롬프트가 Neo4j 스키마를 자동 주입하므로 별도 설정 불필요.
+    llm=generation_llm,                          # query_llm = generation_llm (gpt-3.5-turbo)
+    text_to_cypher_template=TEXT_TO_CYPHER_TEMPLATE,
+    cypher_validator=_clean_cypher,              # 마크다운 펜스 제거
+    include_text=True,
 )
 
 retriever = index.as_retriever(
@@ -188,17 +218,30 @@ ragas_data = {
     "reference": [],           # RAGAS 0.2+: 구 "ground_truth"
 }
 
+n_failed = 0
 for i, (question, reference) in enumerate(zip(questions, references), 1):
     print(f"  [{i:3d}/{len(questions)}] {question[:60]}...")
 
-    response = query_engine.query(question)
+    # LLM 이 라벨 / 관계 타입을 환각하거나, 마크다운 정제 후에도 미세한 syntax 오류가
+    # 남아있는 경우가 종종 있다. 한 질문이 전체 평가를 죽이지 않도록 빈 컨텍스트로 폴백.
+    try:
+        response = query_engine.query(question)
+        retrieved_contexts = [n.node.get_content() for n in response.source_nodes]
+        answer_text = str(response)
+    except Exception as e:
+        n_failed += 1
+        print(f"        [retrieval failed → empty ctx] {type(e).__name__}: {str(e)[:120]}")
+        retrieved_contexts = []
+        answer_text = "(retrieval failed — no context returned by Cypher)"
 
     ragas_data["user_input"].append(question)
-    ragas_data["response"].append(str(response))
-    ragas_data["retrieved_contexts"].append(
-        [node.node.get_content() for node in response.source_nodes]
-    )
+    ragas_data["response"].append(answer_text)
+    ragas_data["retrieved_contexts"].append(retrieved_contexts)
     ragas_data["reference"].append(reference)
+
+if n_failed:
+    print(f"\n  주의: {n_failed}/{len(questions)} 질문에서 retrieval 이 실패했습니다 "
+          f"(빈 컨텍스트로 평가됨 — RAGAS retrieval 메트릭이 0 으로 점수 매겨짐)")
 
 
 # ── RAGAS 평가 ─────────────────────────────────────────────────────────────────

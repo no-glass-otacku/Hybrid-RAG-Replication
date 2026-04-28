@@ -1,6 +1,7 @@
 import pandas as pd
 import time
 
+from typing import Iterable, Iterator, List, NamedTuple, TypeVar
 from dotenv import load_dotenv
 import os
 
@@ -95,3 +96,58 @@ def filter_large_nodes(nodes, max_length=8000):
         if text_length <= max_length and window_length <= max_length:
             filtered_nodes.append(node)
     return filtered_nodes
+
+
+class Neo4jCreds(NamedTuple):
+    uri: str
+    username: str
+    password: str
+    database: str
+
+
+def _first_nonempty(*values: str | None) -> str | None:
+    for v in values:
+        if v:
+            return v
+    return None
+
+
+def get_neo4j_creds(flavor: str) -> Neo4jCreds:
+    """
+    flavor 에 맞는 Neo4j 접속 자격증명 반환.
+
+    우선순위:
+        NEO4J_URI_<FLAVOR>      > NEO4J_URI       (필수)
+        NEO4J_USERNAME_<FLAVOR> > NEO4J_USERNAME  > 'neo4j'
+        NEO4J_PASSWORD_<FLAVOR> > NEO4J_PASSWORD  (필수)
+        NEO4J_DATABASE_<FLAVOR> > 'neo4j'
+
+    한 인스턴스만 쓰는 사용자도 NEO4J_URI / NEO4J_PASSWORD 만 채워두면 동작.
+    Aura 두 인스턴스로 분리한 사용자는 flavor 태그가 붙은 변수만 채우면 됨.
+    """
+    flavor = flavor.upper()
+
+    uri = _first_nonempty(
+        os.getenv(f"NEO4J_URI_{flavor}"),
+        os.getenv("NEO4J_URI"),
+    )
+    user = _first_nonempty(
+        os.getenv(f"NEO4J_USERNAME_{flavor}"),
+        os.getenv("NEO4J_USERNAME"),
+    ) or "neo4j"
+    pw = _first_nonempty(
+        os.getenv(f"NEO4J_PASSWORD_{flavor}"),
+        os.getenv("NEO4J_PASSWORD"),
+    )
+    db = os.getenv(f"NEO4J_DATABASE_{flavor}", os.getenv(f"NEO4J_USERNAME_{flavor}"))
+
+    if not uri:
+        raise RuntimeError(
+            f"NEO4J_URI_{flavor} (또는 폴백 NEO4J_URI) 가 .env 에 설정돼있지 않습니다."
+        )
+    if not pw:
+        raise RuntimeError(
+            f"NEO4J_PASSWORD_{flavor} (또는 폴백 NEO4J_PASSWORD) 가 .env 에 설정돼있지 않습니다."
+        )
+
+    return Neo4jCreds(uri=uri, username=user, password=pw, database=db)

@@ -35,42 +35,42 @@ dataset = load_dataset("jamescalam/ai-arxiv")
 df = pd.DataFrame(dataset['train'])
 
 # # Specify the titles of the required papers
-# required_paper_titles = [
-#     'BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding',
-#     'DistilBERT, a distilled version of BERT: smaller, faster, cheaper and lighter',
-#     'HellaSwag: Can a Machine Really Finish Your Sentence?',
-#     'LLaMA: Open and Efficient Foundation Language Models',
-#     'Measuring Massive Multitask Language Understanding',
-#     'CodeNet: A Large-Scale AI for Code Dataset for Learning a Diversity of Coding Tasks',
-#     'Task2Vec: Task Embedding for Meta-Learning',
-#     'GLM-130B: An Open Bilingual Pre-trained Model',
-#     'SuperGLUE: A Stickier Benchmark for General-Purpose Language Understanding Systems',
-#     "Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism",
-#     "PAL: Program-aided Language Models",
-#     "RoBERTa: A Robustly Optimized BERT Pretraining Approach",
-#     "DetectGPT: Zero-Shot Machine-Generated Text Detection using Probability Curvature"
-# ]
-# # Filter the DataFrame to include only the required papers
-# required_papers = df[df['title'].isin(required_paper_titles)]
-#
-# # Exclude the already selected papers to avoid duplicates and randomly sample ~40-50 papers
-# remaining_papers = df[~df['title'].isin(required_paper_titles)].sample(n=40, random_state=123)
-#
-# # Concatenate the two DataFrames
-# final_df = pd.concat([required_papers, remaining_papers], ignore_index=True)
+required_paper_titles = [
+    'BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding',
+    'DistilBERT, a distilled version of BERT: smaller, faster, cheaper and lighter',
+    'HellaSwag: Can a Machine Really Finish Your Sentence?',
+    'LLaMA: Open and Efficient Foundation Language Models',
+    'Measuring Massive Multitask Language Understanding',
+    'CodeNet: A Large-Scale AI for Code Dataset for Learning a Diversity of Coding Tasks',
+    'Task2Vec: Task Embedding for Meta-Learning',
+    'GLM-130B: An Open Bilingual Pre-trained Model',
+    'SuperGLUE: A Stickier Benchmark for General-Purpose Language Understanding Systems',
+    "Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism",
+    "PAL: Program-aided Language Models",
+    "RoBERTa: A Robustly Optimized BERT Pretraining Approach",
+    "DetectGPT: Zero-Shot Machine-Generated Text Detection using Probability Curvature"
+]
+# Filter the DataFrame to include only the required papers
+required_papers = df[df['title'].isin(required_paper_titles)]
+
+# Exclude the already selected papers to avoid duplicates and randomly sample ~40-50 papers
+remaining_papers = df[~df['title'].isin(required_paper_titles)].sample(n=40, random_state=123)
+
+# Concatenate the two DataFrames
+final_df = pd.concat([required_papers, remaining_papers], ignore_index=True)
 
 # Prepare document objects from the dataset for indexing
-documents = [Document(text=content) for content in df['content']]
+documents = [Document(text=content) for content in final_df['content']]
 
 # Setup the LLM (Graph Builder) and embedding model
 # embedding_model 은 Vector RAG 와 반드시 동일해야 한다 (다이어그램 파라미터 범례 [A] 공통값).
-llm = OpenAI(model="gpt-3.5-turbo", temperature=0.0)
+llm = OpenAI(model="gpt-4o-mini", temperature=0.0)
 embed_model = OpenAIEmbedding(model="text-embedding-3-large")
 
 # Neo4j connection
-NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-NEO4J_USERNAME = os.getenv("NEO4J_USERNAME", "8448f3ad")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+NEO4J_URI = os.getenv("NEO4J_URI_GRAPH", "bolt://localhost:7687")
+NEO4J_USERNAME = os.getenv("NEO4J_USERNAME_GRAPH", "8448f3ad")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD_GRAPH")
 
 
 def _ensure_database(name: str) -> None:

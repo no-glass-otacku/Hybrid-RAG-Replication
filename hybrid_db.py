@@ -24,7 +24,7 @@ CHUNK_OVERLAP = 204
 # 기본값은 'neo4j' 로 두고, 멀티 DB 지원 환경(Enterprise / 셀프호스팅)에서만
 # .env 의 NEO4J_DATABASE_HYBRID 로 'ai_arxiv_hybrid' 같은 이름을 지정한다.
 HYBRID_DB_LABEL = "ai_arxiv_hybrid"  # 로그/리포트용 식별자 (실제 DB 이름과는 별개)
-HYBRID_DB_NAME = os.getenv("NEO4J_DATABASE_HYBRID", "neo4j")
+HYBRID_DB_NAME = os.getenv("NEO4J_DATABASE_HYBRID", "4565a96f")
 
 # Load the config file
 load_config()
@@ -64,13 +64,13 @@ documents = [Document(text=content) for content in df['content']]
 
 # Setup the LLM (Graph Builder) and embedding model
 # embedding_model 은 Vector RAG 와 반드시 동일해야 한다 (다이어그램 파라미터 범례 [A] 공통값).
-llm = OpenAI(model="gpt-3.5-turbo", temperature=0.0)
+llm = OpenAI(model="gpt-4o_mini", temperature=0.0)
 embed_model = OpenAIEmbedding(model="text-embedding-3-large")
 
 # Neo4j connection
-NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-NEO4J_USERNAME = os.getenv("NEO4J_USERNAME", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+NEO4J_URI = os.getenv("NEO4J_URI_HYBRID", "bolt://localhost:7687")
+NEO4J_USERNAME = os.getenv("NEO4J_USERNAME_HYBRID", "neo4j")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD_HYBRID")
 
 
 def _ensure_database(name: str) -> None:
@@ -126,7 +126,7 @@ def _has_embedded_entities(name: str) -> bool:
         driver.close()
 
 
-_ensure_database(HYBRID_DB_NAME)
+# _ensure_database(HYBRID_DB_NAME)
 
 # Aura/Community 처럼 Graph 와 Hybrid 가 같은 'neo4j' DB 를 공유하는 경우
 # 잘못된 flavor 잔존물을 빨리 잡아낸다.
