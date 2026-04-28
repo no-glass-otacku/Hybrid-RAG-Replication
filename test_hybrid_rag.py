@@ -66,11 +66,11 @@ SIMILARITY_TOP_K  = 4                 # [B] Vector ↔ Hybrid 동일 top_k
 HOP_DEPTH         = 1                 # 다이어그램: 1-hop traversal
 
 # Neo4j 접속 (build_hybrid_db.py 와 동일한 환경변수 사용)
-NEO4J_URI         = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-NEO4J_USERNAME    = os.getenv("NEO4J_USERNAME", "neo4j")
-NEO4J_PASSWORD    = os.getenv("NEO4J_PASSWORD")
+NEO4J_URI         = os.getenv("NEO4J_URI_HYBRID", "bolt://localhost:7687")
+NEO4J_USERNAME    = os.getenv("NEO4J_USERNAME_HYBRID", "4565a96f")
+NEO4J_PASSWORD    = os.getenv("NEO4J_PASSWORD_HYBRID")
 HYBRID_DB_LABEL   = "ai_arxiv_hybrid"  # Vector RAG 의 'ai_arxiv_full' 과 동일한 네이밍 정책
-HYBRID_DB_NAME    = os.getenv("NEO4J_DATABASE_HYBRID", "neo4j")
+HYBRID_DB_NAME    = os.getenv("NEO4J_DATABASE_HYBRID", "4565a96f")
 
 # 벤치마크 (논문: ARAGOG, arXiv AI 논문 16개 / QA쌍 107개)
 BENCHMARK_PATH    = "eval_questions/benchmark.json"   # ← 실제 경로로 수정
