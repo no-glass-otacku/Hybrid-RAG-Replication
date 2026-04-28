@@ -60,7 +60,7 @@ remaining_papers = df[~df['title'].isin(required_paper_titles)].sample(n=40, ran
 final_df = pd.concat([required_papers, remaining_papers], ignore_index=True)
 
 # Prepare document objects from the dataset for indexing
-documents = [Document(text=content) for content in df['content']]
+documents = [Document(text=content) for content in final_df['content']]
 
 # Setup the LLM (Graph Builder) and embedding model
 # embedding_model 은 Vector RAG 와 반드시 동일해야 한다 (다이어그램 파라미터 범례 [A] 공통값).
