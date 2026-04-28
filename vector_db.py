@@ -23,33 +23,34 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 dataset = load_dataset("jamescalam/ai-arxiv")
 df = pd.DataFrame(dataset['train'])
 
-# # Specify the titles of the required papers
-# required_paper_titles = [
-#     'BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding',
-#     'DistilBERT, a distilled version of BERT: smaller, faster, cheaper and lighter',
-#     'HellaSwag: Can a Machine Really Finish Your Sentence?',
-#     'LLaMA: Open and Efficient Foundation Language Models',
-#     'Measuring Massive Multitask Language Understanding',
-#     'CodeNet: A Large-Scale AI for Code Dataset for Learning a Diversity of Coding Tasks',
-#     'Task2Vec: Task Embedding for Meta-Learning',
-#     'GLM-130B: An Open Bilingual Pre-trained Model',
-#     'SuperGLUE: A Stickier Benchmark for General-Purpose Language Understanding Systems',
-#     "Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism",
-#     "PAL: Program-aided Language Models",
-#     "RoBERTa: A Robustly Optimized BERT Pretraining Approach",
-#     "DetectGPT: Zero-Shot Machine-Generated Text Detection using Probability Curvature"
-# ]
-# # Filter the DataFrame to include only the required papers
-# required_papers = df[df['title'].isin(required_paper_titles)]
-#
-# # Exclude the already selected papers to avoid duplicates and randomly sample ~40-50 papers
-# remaining_papers = df[~df['title'].isin(required_paper_titles)].sample(n=40, random_state=123)
-#
-# # Concatenate the two DataFrames
-# final_df = pd.concat([required_papers, remaining_papers], ignore_index=True)
+# Specify the titles of the required papers
+required_paper_titles = [
+    'BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding',
+    'DistilBERT, a distilled version of BERT: smaller, faster, cheaper and lighter',
+    'HellaSwag: Can a Machine Really Finish Your Sentence?',
+    'LLaMA: Open and Efficient Foundation Language Models',
+    'Measuring Massive Multitask Language Understanding',
+    'CodeNet: A Large-Scale AI for Code Dataset for Learning a Diversity of Coding Tasks',
+    'Task2Vec: Task Embedding for Meta-Learning',
+    'GLM-130B: An Open Bilingual Pre-trained Model',
+    'SuperGLUE: A Stickier Benchmark for General-Purpose Language Understanding Systems',
+    "Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism",
+    "PAL: Program-aided Language Models",
+    "RoBERTa: A Robustly Optimized BERT Pretraining Approach",
+    "DetectGPT: Zero-Shot Machine-Generated Text Detection using Probability Curvature"
+]
+# Filter the DataFrame to include only the required papers
+required_papers = df[df['title'].isin(required_paper_titles)]
+
+# Exclude the already selected papers to avoid duplicates and randomly sample ~40-50 papers
+remaining_papers = df[~df['title'].isin(required_paper_titles)].sample(n=40, random_state=123)
+
+# Concatenate the two DataFrames
+final_df = pd.concat([required_papers, remaining_papers], ignore_index=True)
 
 # Prepare document objects from the dataset for indexing
 documents = [Document(text=content) for content in df['content']]
+# documents = [Document(text=content) for content in required_papers['content']]
 
 # Setup the embedding model
 embed_model = OpenAIEmbedding(model="text-embedding-3-large")
