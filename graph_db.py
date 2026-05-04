@@ -13,8 +13,12 @@ from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
 from llama_index.graph_stores.neo4j import Neo4jPropertyGraphStore
 
-from utils import load_config
+# for local llm, ollama
+from llama_index.llms.ollama import Ollama
+from llama_index.embeddings.ollama import OllamaEmbedding
 
+
+from utils import load_config
 
 # 1. Config
 load_config()
@@ -28,6 +32,9 @@ NEO4J_USERNAME = os.getenv("NEO4J_USERNAME_GRAPH", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD_GRAPH")
 NEO4J_DATABASE = os.getenv("NEO4J_DATABASE_GRAPH", "neo4j")
 
+print("NEO4J_URI =", NEO4J_URI)
+print("NEO4J_USERNAME =", NEO4J_USERNAME)
+print("NEO4J_DATABASE =", NEO4J_DATABASE)
 
 # 2. Load data
 dataset = load_dataset("jamescalam/ai-arxiv")
@@ -67,10 +74,21 @@ parser = TokenTextSplitter(
 nodes = parser.get_nodes_from_documents(documents)
 
 
-# 4. Models
-llm = OpenAI(model="gpt-4o-mini", temperature=0.0)
-embed_model = OpenAIEmbedding(model="text-embedding-3-large")
+# 4. Models with OpenAI
+# llm = OpenAI(model="gpt-4o-mini", temperature=0.0)
+# embed_model = OpenAIEmbedding(model="text-embedding-3-large")
 
+# 4. Models with Ollama
+# (Graph triple extractor)
+llm = Ollama(
+    model="qwen2.5:14b",
+    request_timeout=600.0,
+)
+
+# Embedding (완전 로컬)
+embed_model = OllamaEmbedding(
+    model_name="nomic-embed-text"
+)
 
 # 5. Neo4j graph store
 graph_store = Neo4jPropertyGraphStore(
