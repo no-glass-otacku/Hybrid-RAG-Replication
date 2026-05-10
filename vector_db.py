@@ -49,7 +49,7 @@ remaining_papers = df[~df['title'].isin(required_paper_titles)].sample(n=40, ran
 final_df = pd.concat([required_papers, remaining_papers], ignore_index=True)
 
 # Prepare document objects from the dataset for indexing
-documents = [Document(text=content) for content in df['content']]
+documents = [Document(text=content) for content in final_df['content']]
 # documents = [Document(text=content) for content in required_papers['content']]
 
 # Setup the embedding model

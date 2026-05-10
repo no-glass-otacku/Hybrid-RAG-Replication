@@ -31,6 +31,9 @@ NEO4J_USERNAME = os.getenv("NEO4J_USERNAME_HYBRID", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD_HYBRID")
 NEO4J_DATABASE = os.getenv("NEO4J_DATABASE_HYBRID", "neo4j")
 
+# for llm configuration
+OLLAMA_MODEL_GRAPH = "qwen2.5:14b"
+OLLAMA_MODEL_EMBEDDING="nomic-embed-text"
 
 # 2. Load data
 dataset = load_dataset("jamescalam/ai-arxiv")
@@ -78,13 +81,13 @@ nodes = parser.get_nodes_from_documents(documents)
 # 4. Models with Ollama
 # (Graph triple extractor)
 llm = Ollama(
-    model="qwen2.5:14b",
+    model=OLLAMA_MODEL_GRAPH,
     request_timeout=600.0,
 )
 
 # Embedding (완전 로컬)
 embed_model = OllamaEmbedding(
-    model_name="nomic-embed-text"
+    model_name=OLLAMA_MODEL_EMBEDDING
 )
 
 # 5. Neo4j graph store

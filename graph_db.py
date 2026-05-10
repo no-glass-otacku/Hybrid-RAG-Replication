@@ -32,9 +32,9 @@ NEO4J_USERNAME = os.getenv("NEO4J_USERNAME_GRAPH", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD_GRAPH")
 NEO4J_DATABASE = os.getenv("NEO4J_DATABASE_GRAPH", "neo4j")
 
-print("NEO4J_URI =", NEO4J_URI)
-print("NEO4J_USERNAME =", NEO4J_USERNAME)
-print("NEO4J_DATABASE =", NEO4J_DATABASE)
+# for llm configuration
+OLLAMA_MODEL_GRAPH = "qwen2.5:14b"
+OLLAMA_MODEL_EMBEDDING="nomic-embed-text"
 
 # 2. Load data
 dataset = load_dataset("jamescalam/ai-arxiv")
@@ -74,6 +74,7 @@ parser = TokenTextSplitter(
 nodes = parser.get_nodes_from_documents(documents)
 
 
+
 # 4. Models with OpenAI
 # llm = OpenAI(model="gpt-4o-mini", temperature=0.0)
 # embed_model = OpenAIEmbedding(model="text-embedding-3-large")
@@ -81,13 +82,13 @@ nodes = parser.get_nodes_from_documents(documents)
 # 4. Models with Ollama
 # (Graph triple extractor)
 llm = Ollama(
-    model="qwen2.5:14b",
+    model=OLLAMA_MODEL_GRAPH,
     request_timeout=600.0,
 )
 
 # Embedding (완전 로컬)
 embed_model = OllamaEmbedding(
-    model_name="nomic-embed-text"
+    model_name=OLLAMA_MODEL_EMBEDDING
 )
 
 # 5. Neo4j graph store
@@ -104,7 +105,7 @@ extractors = [
     SimpleLLMPathExtractor(
         llm=llm,
         max_paths_per_chunk=20,
-        num_workers=4,
+        num_workers=2,
     ),
     ImplicitPathExtractor(),
 ]
