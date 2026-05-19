@@ -23,7 +23,7 @@ from llama_index.embeddings.ollama import OllamaEmbedding
 load_config()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-TOKEN_CHUNK_SIZE = 2024
+TOKEN_CHUNK_SIZE = 1024 #2024
 CHUNK_OVERLAP = 204
 
 NEO4J_URI = os.getenv("NEO4J_URI_HYBRID", "bolt://localhost:7687")

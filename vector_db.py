@@ -2,6 +2,7 @@
 from datasets import load_dataset
 import pandas as pd
 from llama_index.core import Document, StorageContext, VectorStoreIndex
+from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
 import chromadb
@@ -12,13 +13,14 @@ import openai
 import os
 
 # Hardcoded values for easy adjustment
-TOKEN_CHUNK_SIZE = 1024
+TOKEN_CHUNK_SIZE = 512 #1024
 CHUNK_OVERLAP = 0
 
 # Load the config file
 load_config()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
+OLLAMA_MODEL_EMBEDDING="nomic-embed-text"
 # Load dataset and convert to DataFrame for easier manipulation
 dataset = load_dataset("jamescalam/ai-arxiv")
 df = pd.DataFrame(dataset['train'])
@@ -54,6 +56,11 @@ documents = [Document(text=content) for content in final_df['content']]
 
 # Setup the embedding model
 embed_model = OpenAIEmbedding(model="text-embedding-3-large")
+
+# # Embedding (완전 로컬)
+# embed_model = OllamaEmbedding(
+#     model_name=OLLAMA_MODEL_EMBEDDING
+# )
 
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 
