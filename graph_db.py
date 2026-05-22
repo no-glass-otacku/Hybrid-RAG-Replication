@@ -63,8 +63,16 @@ remaining_papers = df[~df["title"].isin(required_paper_titles)].sample(
 )
 
 final_df = pd.concat([required_papers, remaining_papers], ignore_index=True)
-documents = [Document(text=content) for content in final_df["content"]]
-
+# documents = [Document(text=content) for content in final_df["content"]]
+documents = [
+    Document(
+        text=row["content"],
+        metadata={
+            "title": row["title"],
+        }
+    )
+    for _, row in final_df.iterrows()
+]
 
 # 3. Chunking
 parser = TokenTextSplitter(

@@ -62,8 +62,17 @@ remaining_papers = df[~df["title"].isin(required_paper_titles)].sample(
 )
 
 final_df = pd.concat([required_papers, remaining_papers], ignore_index=True)
-documents = [Document(text=content) for content in final_df["content"]]
-
+# documents = [Document(text=content) for content in final_df["content"]]
+# add title information
+documents = [
+    Document(
+        text=row["content"],
+        metadata={
+            "title": row["title"],
+        }
+    )
+    for _, row in final_df.iterrows()
+]
 
 # 3. Chunking
 parser = TokenTextSplitter(
@@ -75,15 +84,15 @@ nodes = parser.get_nodes_from_documents(documents)
 
 
 # 4. Models with OpenAI
-# llm = OpenAI(model="gpt-4o-mini", temperature=0.0)
+llm = OpenAI(model="gpt-4o-mini", temperature=0.0)
 # embed_model = OpenAIEmbedding(model="text-embedding-3-large")
 
 # 4. Models with Ollama
 # (Graph triple extractor)
-llm = Ollama(
-    model=OLLAMA_MODEL_GRAPH,
-    request_timeout=600.0,
-)
+# llm = Ollama(
+#     model=OLLAMA_MODEL_GRAPH,
+#     request_timeout=600.0,
+# )
 
 # Embedding (완전 로컬)
 embed_model = OllamaEmbedding(
