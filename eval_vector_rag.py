@@ -15,6 +15,8 @@ import pandas as pd
 import chromadb
 
 from llama_index.core import VectorStoreIndex, PromptTemplate, Settings
+from llama_index.embeddings.ollama import OllamaEmbedding
+from langchain_ollama import OllamaEmbeddings as LangchainOllamaEmbeddings
 from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.vector_stores.chroma import ChromaVectorStore
@@ -63,15 +65,17 @@ os.makedirs("results", exist_ok=True)
 
 # ── LLM / 임베딩 초기화 ────────────────────────────────────────────────────────
 generation_llm = OpenAI(model=GENERATION_MODEL, temperature=TEMPERATURE)
-embed_model    = OpenAIEmbedding(model=EMBED_MODEL)
-
+# embed_model    = OpenAIEmbedding(model=EMBED_MODEL)
+embed_model    = OllamaEmbedding("nomic-embed-text")
 Settings.llm         = generation_llm
 Settings.embed_model = embed_model
 
 # RAGAS 평가용 LLM/임베딩 (LangChain 래퍼 필요)
 ragas_llm   = LangchainLLMWrapper(ChatOpenAI(model=EVAL_MODEL, temperature=TEMPERATURE))
-ragas_embed = LangchainEmbeddingsWrapper(OpenAIEmbeddings(model=EMBED_MODEL))
-
+# ragas_embed = LangchainEmbeddingsWrapper(OpenAIEmbeddings(model=EMBED_MODEL))
+ragas_embed = LangchainEmbeddingsWrapper(
+    LangchainOllamaEmbeddings(model="nomic-embed-text")
+)
 # RAGAS 메트릭에 평가 LLM / 임베딩 주입
 RAGAS_METRICS = [
     context_precision,
