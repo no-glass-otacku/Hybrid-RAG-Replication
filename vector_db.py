@@ -55,12 +55,12 @@ documents = [Document(text=content) for content in final_df['content']]
 # documents = [Document(text=content) for content in required_papers['content']]
 
 # Setup the embedding model
-embed_model = OpenAIEmbedding(model="text-embedding-3-large")
+# embed_model = OpenAIEmbedding(model="text-embedding-3-large")
 
 # # Embedding (완전 로컬)
-# embed_model = OllamaEmbedding(
-#     model_name=OLLAMA_MODEL_EMBEDDING
-# )
+embed_model = OllamaEmbedding(
+    model_name=OLLAMA_MODEL_EMBEDDING
+)
 
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 
