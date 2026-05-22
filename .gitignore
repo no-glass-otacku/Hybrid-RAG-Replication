@@ -16,3 +16,5 @@ playground.ipynb
 # for virtual env python
 venv/
 .python-version
+/.venv/
+/artifacts/
