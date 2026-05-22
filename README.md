@@ -110,16 +110,15 @@ project-root/
     2. [서울과학기술대학교 규정](https://www.seoultech.ac.kr/intro/uvstat/rules/)
 - Metrics: 검색 정확도, QA 성능, 기존 방식 대비 향상 정도
 - 성능 평가 기준
-    
-    
-    | 지표 | 무엇을 평가하는가 | 핵심 질문 |
-    | --- | --- | --- |
-    | Context Precision | 검색 결과의 정확성 | 가져온 문맥이 정말 관련 있는가? |
-    | Context Recall | 검색 결과의 포괄성 | 필요한 문맥을 충분히 가져왔는가? |
-    | Faithfulness | 답변의 근거 충실성 | 답변이 검색 문맥에 기반하고 있는가? |
-    | Answer Relevancy | 질문-답변 관련성 | 답변이 질문 의도에 맞는가? |
-    | Answer Correctness | 답변의 정답성 | 답변 내용이 실제로 맞는가? |
-    | Answer Similarity | 정답과의 의미적 유사성 | 생성 답변이 참조 정답과 비슷한가? |
+
+    | 지표                 | 무엇을 평가하는가    | 핵심 질문                |
+    |--------------------|--------------|----------------------|
+    | Context Precision  | 검색 결과의 정확성   | 가져온 문맥이 정말 관련 있는가?   |
+    | Context Recall     | 검색 결과의 포괄성   | 필요한 문맥을 충분히 가져왔는가?   |
+    | Faithfulness       | 답변의 근거 충실성   | 답변이 검색 문맥에 기반하고 있는가? |
+    | Answer Relevancy   | 질문-답변 관련성    | 답변이 질문 의도에 맞는가?      |
+    | Answer Correctness | 답변의 정답성      | 답변 내용이 실제로 맞는가?      |
+    | Answer Similarity  | 정답과의 의미적 유사성 | 생성 답변이 참조 정답과 비슷한가?  |
     - **문맥 정밀도 (Context Precision)** → 상위 검색 결과 중 **관련 있는 문맥이 얼마나 정확하게 포함되었는지** 평가
         
         $\frac{\sum_{k=1}^{K} Precision@k \times v_k}{\text{Total num of relevant items in the top K results}}$
