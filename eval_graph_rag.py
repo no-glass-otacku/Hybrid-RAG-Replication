@@ -26,6 +26,7 @@ from llama_index.core import PropertyGraphIndex, PromptTemplate, Settings
 from llama_index.core.indices.property_graph import TextToCypherRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.embeddings.ollama import OllamaEmbedding
+from langchain_ollama import OllamaEmbeddings as LangchainOllamaEmbeddings
 from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.graph_stores.neo4j import Neo4jPropertyGraphStore
@@ -95,7 +96,9 @@ Settings.embed_model = embed_model
 # RAGAS 평가용 LLM/임베딩 (LangChain 래퍼 필요)
 ragas_llm   = LangchainLLMWrapper(ChatOpenAI(model=EVAL_MODEL, temperature=TEMPERATURE))
 # ragas_embed = LangchainEmbeddingsWrapper(OpenAIEmbeddings(model=EMBED_MODEL))
-ragas_embed = LangchainEmbeddingsWrapper(OllamaEmbedding("nomic-embed-text"))
+ragas_embed = LangchainEmbeddingsWrapper(
+    LangchainOllamaEmbeddings(model="nomic-embed-text")
+)
 
 # RAGAS 메트릭에 평가 LLM / 임베딩 주입 (다이어그램의 6개 지표)
 RAGAS_METRICS = [
