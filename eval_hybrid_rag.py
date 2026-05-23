@@ -32,6 +32,7 @@ from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.graph_stores.neo4j import Neo4jPropertyGraphStore
 
+
 # RAGAS
 from datasets import Dataset
 from ragas import evaluate
@@ -43,7 +44,8 @@ from ragas.metrics import (
     answer_correctness,
     answer_similarity,
 )
-
+#ragas 평가시의 configuration (e.g. 실행 속도)
+from ragas.run_config import RunConfig
 # RAGAS가 내부적으로 사용할 평가 LLM/임베딩 (다이어그램: GPT-4o)
 from ragas.llms import LangchainLLMWrapper
 from ragas.embeddings import LangchainEmbeddingsWrapper
@@ -214,7 +216,19 @@ for i, (question, reference) in enumerate(zip(questions, references), 1):
 # ── RAGAS 평가 ─────────────────────────────────────────────────────────────────
 print("\n[RAGAS] 평가 실행 중 (6개 메트릭)...")
 dataset = Dataset.from_dict(ragas_data)
-result  = evaluate(dataset=dataset, metrics=RAGAS_METRICS)
+run_config = RunConfig(
+    max_workers=1,
+    timeout=300,
+    max_retries=10,
+    max_wait=60,
+)
+
+result = evaluate(
+    dataset=dataset,
+    metrics=RAGAS_METRICS,
+    run_config=run_config,
+    raise_exceptions=False,
+)
 
 scores_df = result.to_pandas()
 scores_df.to_csv(OUTPUT_CSV, index=False, encoding="utf-8-sig")

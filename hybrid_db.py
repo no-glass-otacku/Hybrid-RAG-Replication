@@ -18,6 +18,13 @@ from utils import load_config
 # for local llm, ollama
 from llama_index.llms.ollama import Ollama
 from llama_index.embeddings.ollama import OllamaEmbedding
+import sys
+import asyncio
+# KG 생성 과정을 오랫동안 기다릴 수 있도록 해서 event loop is closed 에러를 피해보자
+if sys.platform.startswith("win"):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
 
 # 1. Config
 load_config()
@@ -96,7 +103,22 @@ llm = OpenAI(model="gpt-4o-mini", temperature=0.0)
 
 # Embedding (완전 로컬)
 embed_model = OllamaEmbedding(
-    model_name=OLLAMA_MODEL_EMBEDDING
+    model_name=OLLAMA_MODEL_EMBEDDING,
+    base_url="http://localhost:11434",
+
+    # 품질을 낮추는 설정이 아님
+    # 한 번에 보내는 embedding 요청 묶음 크기만 조절
+    embed_batch_size=16,
+
+    # Ollama 모델을 메모리에 오래 유지
+    keep_alive="60m",
+
+    # 핵심: async embedding 동시 요청 수 제한
+    num_workers=1,
+    # HTTP 요청을 오래 기다리도록 설정
+    client_kwargs={
+        "timeout": 1800.0,  # 30분
+    },
 )
 
 # 5. Neo4j graph store
@@ -128,6 +150,6 @@ index = PropertyGraphIndex(
     embed_model=embed_model,
     embed_kg_nodes=True,   # Hybrid RAG: KG node embedding 저장
     show_progress=True,
+    use_async=False,
 )
-
 print("Hybrid DB 구축 완료")
