@@ -90,7 +90,10 @@ generation_llm = OpenAI(
     temperature=TEMPERATURE,
     max_tokens=MAX_TOKENS,
 )
-embed_model = OpenAIEmbedding(model=EMBED_MODEL)
+# embed_model = OpenAIEmbedding(model=EMBED_MODEL)
+embed_model = LangchainEmbeddingsWrapper(
+    LangchainOllamaEmbeddings(model="nomic-embed-text")
+)
 
 Settings.llm         = generation_llm
 Settings.embed_model = embed_model
