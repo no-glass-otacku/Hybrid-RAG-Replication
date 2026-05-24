@@ -21,7 +21,8 @@ import os
 import re
 import json
 import pandas as pd
-
+# Cypher 문법에러가 자꾸 나서 에러 검증 과정 추가
+from neo4j.exceptions import CypherSyntaxError
 from llama_index.core import PropertyGraphIndex, PromptTemplate, Settings
 from llama_index.core.indices.property_graph import TextToCypherRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
@@ -144,40 +145,191 @@ print(f"[2/4] Graph 쿼리 엔진 구성 (retriever=TextToCypher, hop_depth={HOP
 # (1) gpt-3.5-turbo 가 종종 ```cypher ... ``` 마크다운으로 감싸서 반환하는데
 #     Neo4j 파서는 그걸 못 벗기고 SyntaxError 를 낸다. 코드펜스를 제거하는
 #     validator 를 cypher_validator 훅으로 끼워 넣는다.
-_FENCE_OPEN  = re.compile(r"^```(?:cypher|sql)?\s*\n?", flags=re.IGNORECASE)
-_FENCE_CLOSE = re.compile(r"\n?```\s*$")
+# ── Cypher 정제 / 검증 / 복구 ────────────────────────────────────────────────
 
-def _clean_cypher(cypher_query: str) -> str:
-    cleaned = cypher_query.strip()
-    cleaned = _FENCE_OPEN.sub("", cleaned)
-    cleaned = _FENCE_CLOSE.sub("", cleaned)
-    return cleaned.strip()
+FORBIDDEN_PATTERN = re.compile(
+    r"\b("
+    r"CREATE|MERGE|SET|DELETE|DETACH\s+DELETE|DROP|REMOVE|"
+    r"LOAD\s+CSV|CALL\s+dbms|CALL\s+apoc|UNION|"
+    r"SELECT|FROM|JOIN|GROUP\s+BY|HAVING"
+    r")\b",
+    re.IGNORECASE,
+)
 
-# (2) 동시에 LLM 이 애초에 마크다운을 쓰지 않도록 프롬프트로도 잠금.
-TEXT_TO_CYPHER_TEMPLATE = PromptTemplate(
-    "You are an expert Cypher query writer. Generate ONE Cypher query that answers the "
-    "question, using the given Neo4j schema.\n\n"
-    "Schema:\n{schema}\n\n"
+def clean_cypher(raw: str) -> str:
+    """
+    LLM이 생성한 Cypher에서 실행에 방해되는 표현을 제거한다.
+    """
+    q = raw.strip()
+
+    # ```cypher ... ``` 제거
+    q = re.sub(r"^```(?:cypher|sql)?\s*", "", q, flags=re.IGNORECASE)
+    q = re.sub(r"\s*```$", "", q)
+
+    # accidental prefix 제거
+    for prefix in ["Cypher query:", "Query:", "Cypher:"]:
+        if prefix.lower() in q.lower():
+            q = re.split(prefix, q, flags=re.IGNORECASE)[-1].strip()
+
+    # 첫 번째 statement만 사용
+    q = q.split(";")[0].strip()
+
+    return q
+
+
+def is_safe_read_query(query: str) -> tuple[bool, str | None]:
+    """
+    read-only Cypher인지 1차 검사한다.
+    """
+    upper = query.upper().strip()
+
+    if not upper.startswith(("MATCH", "OPTIONAL MATCH")):
+        return False, "Query must start with MATCH or OPTIONAL MATCH."
+
+    if FORBIDDEN_PATTERN.search(query):
+        return False, "Query contains forbidden Cypher or SQL keyword."
+
+    if not re.search(r"\bRETURN\b", upper):
+        return False, "Query must contain RETURN."
+
+    if not re.search(r"\bLIMIT\s+10\s*$", upper):
+        return False, "Query must end with LIMIT 10."
+
+    return True, None
+
+
+def explain_cypher(query: str) -> tuple[bool, str | None]:
+    """
+    Neo4j에 EXPLAIN을 날려 실제 문법 검증을 수행한다.
+    """
+    try:
+        graph_store.structured_query("EXPLAIN " + query)
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
+CYPHER_REPAIR_TEMPLATE = PromptTemplate(
+    "You are an expert Neo4j Cypher 5 syntax fixer.\n"
+    "Fix the invalid Cypher query using the given schema and error message.\n\n"
+
+    "Schema:\n"
+    "{schema}\n\n"
+
+    "Invalid Cypher query:\n"
+    "{bad_query}\n\n"
+
+    "Error or validation reason:\n"
+    "{error}\n\n"
+
     "STRICT RULES:\n"
+    "- Output ONLY the corrected raw Cypher query.\n"
+    "- No markdown code fences.\n"
+    "- No explanations, comments, or prose.\n"
+    "- Single read-only statement only.\n"
+    "- The query must start with MATCH or OPTIONAL MATCH.\n"
+    "- Use only labels, relationship types, and properties from the schema.\n"
+    "- Do NOT use UNION.\n"
+    "- Do NOT use CREATE, MERGE, SET, DELETE, DETACH DELETE, DROP, REMOVE, LOAD CSV, CALL dbms, or CALL apoc.\n"
+    "- Do NOT use SQL syntax: SELECT, FROM, JOIN, GROUP BY, HAVING.\n"
+    "- If aggregation is needed, use WITH or RETURN aggregation. Never use GROUP BY.\n"
+    "- WHERE may appear only immediately after MATCH, OPTIONAL MATCH, or WITH.\n"
+    "- ORDER BY may appear only after RETURN or WITH, and must appear before LIMIT.\n"
+    "- Always end with LIMIT 10.\n"
+    "- Do NOT end with a semicolon.\n\n"
+
+    "Corrected Cypher query:"
+)
+
+
+def repair_cypher(query: str, error: str) -> str:
+    """
+    안전성 검사 또는 EXPLAIN 검증에 실패한 Cypher를 한 번만 복구한다.
+    """
+    repaired = generation_llm.predict(
+        CYPHER_REPAIR_TEMPLATE,
+        schema=graph_store.get_schema_str(),
+        bad_query=query,
+        error=error,
+    )
+    return clean_cypher(repaired)
+
+
+def safe_cypher_validator(cypher_query: str) -> str:
+    """
+    TextToCypherRetriever에 연결할 실제 validator.
+    1. 정제
+    2. read-only / SQL 문법 차단
+    3. EXPLAIN 문법 검증
+    4. 실패 시 1회 repair
+    5. repair 결과 재검증
+    """
+    query = clean_cypher(cypher_query)
+
+    safe, reason = is_safe_read_query(query)
+
+    if not safe:
+        query = repair_cypher(query, reason or "Unsafe query generated.")
+
+    safe, reason = is_safe_read_query(query)
+    if not safe:
+        raise ValueError(f"Unsafe Cypher after repair: {reason}\nQuery:\n{query}")
+
+    ok, error = explain_cypher(query)
+
+    if not ok:
+        query = repair_cypher(query, error or "Cypher syntax error.")
+
+    safe, reason = is_safe_read_query(query)
+    if not safe:
+        raise ValueError(f"Unsafe Cypher after syntax repair: {reason}\nQuery:\n{query}")
+
+    ok, error = explain_cypher(query)
+    if not ok:
+        raise ValueError(f"Cypher EXPLAIN failed after repair:\n{error}\n\nQuery:\n{query}")
+
+    print(f"        [generated cypher] {query}")
+
+    return query
+TEXT_TO_CYPHER_TEMPLATE = PromptTemplate(
+    "You are an expert Neo4j Cypher 5 query writer.\n"
+    "Generate exactly ONE read-only Cypher query that answers the question using the given schema.\n\n"
+
+    "Schema:\n"
+    "{schema}\n\n"
+
+    "STRICT OUTPUT RULES:\n"
     "- Output ONLY the raw Cypher query.\n"
     "- No markdown code fences.\n"
     "- No explanations, comments, or prose.\n"
-    "- The query must be syntactically valid Cypher 5.\n"
-    "- Use only labels and relationship types that appear in the schema above.\n"
+    "- Do NOT prefix the answer with 'Cypher', 'Query:', or any natural language.\n"
+    "- Do NOT end with a semicolon.\n\n"
+
+    "STRICT CYPHER RULES:\n"
+    "- The query must be valid Neo4j Cypher 5.\n"
+    "- The query must start with MATCH or OPTIONAL MATCH.\n"
+    "- Use only labels, relationship types, and properties that appear in the schema.\n"
+    "- Do NOT invent labels, relationship types, or properties.\n"
     "- Do NOT use UNION.\n"
-    "- Do NOT use CREATE, MERGE, SET, DELETE, DETACH DELETE, DROP, REMOVE.\n"
-    "- WHERE must appear immediately after MATCH, OPTIONAL MATCH, or WITH, never after RETURN.\n"
-    "- Prefer a simple MATCH / OPTIONAL MATCH / RETURN query.\n"
+    "- Do NOT use CREATE, MERGE, SET, DELETE, DETACH DELETE, DROP, REMOVE, LOAD CSV, CALL dbms, or CALL apoc.\n"
+    "- Do NOT use SQL syntax: SELECT, FROM, JOIN, GROUP BY, HAVING.\n"
+    "- If aggregation is needed, use Cypher aggregation with WITH or RETURN. Never write GROUP BY.\n"
+    "- WHERE may appear only immediately after MATCH, OPTIONAL MATCH, or WITH.\n"
+    "- ORDER BY may appear only after RETURN or WITH, and must appear before LIMIT.\n"
+    "- Prefer simple MATCH / OPTIONAL MATCH / WHERE / WITH / RETURN / ORDER BY / LIMIT queries.\n"
+    "- Return scalar fields or map projections, not raw nodes or relationships.\n"
     "- Always end with LIMIT 10.\n\n"
-    "Question: {question}\n\n"
+
+    "Question:\n"
+    "{question}\n\n"
+
     "Cypher query:"
 )
-
 cypher_retriever = TextToCypherRetriever(
     graph_store=graph_store,
     llm=generation_llm,                          # query_llm = generation_llm (gpt-3.5-turbo)
     text_to_cypher_template=TEXT_TO_CYPHER_TEMPLATE,
-    cypher_validator=_clean_cypher,              # 마크다운 펜스 제거
+    cypher_validator=safe_cypher_validator,              # 마크다운 펜스 제거
     include_text=True,
 )
 
