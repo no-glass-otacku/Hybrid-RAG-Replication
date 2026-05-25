@@ -127,7 +127,7 @@ graph_store = Neo4jPropertyGraphStore(
 )
 index = PropertyGraphIndex.from_existing(
     property_graph_store=graph_store,
-    embed_model=embed_model,
+    # embed_model=embed_model,
     embed_kg_nodes=False,    # Graph RAG: 노드 임베딩 없음
 )
 
