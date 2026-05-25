@@ -32,7 +32,6 @@ from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.graph_stores.neo4j import Neo4jPropertyGraphStore
 
-
 # RAGAS
 from datasets import Dataset
 from ragas import evaluate
@@ -90,13 +89,14 @@ generation_llm = OpenAI(
     temperature=TEMPERATURE,
     max_tokens=MAX_TOKENS,
 )
-# embed_model = OpenAIEmbedding(model=EMBED_MODEL)
-embed_model = LangchainEmbeddingsWrapper(
-    LangchainOllamaEmbeddings(model="nomic-embed-text")
+
+# LlamaIndex retrieval / graph search 용
+embed_model = OllamaEmbedding(
+    model_name="nomic-embed-text",
+    base_url="http://localhost:11434",
 )
 
-Settings.llm         = generation_llm
-Settings.embed_model = embed_model
+# embed_model = OpenAIEmbedding(model=EMBED_MODEL)
 
 # RAGAS 평가용 LLM/임베딩 (LangChain 래퍼 필요)
 ragas_llm   = LangchainLLMWrapper(ChatOpenAI(model=EVAL_MODEL, temperature=TEMPERATURE))
@@ -129,6 +129,9 @@ graph_store = Neo4jPropertyGraphStore(
 index = PropertyGraphIndex.from_existing(
     property_graph_store=graph_store,
     embed_model=embed_model,
+    similarity_top_k=SIMILARITY_TOP_K,
+    path_depth=HOP_DEPTH,
+    include_text=True,
     embed_kg_nodes=True,    # Hybrid RAG: 노드 임베딩 사용
 )
 
